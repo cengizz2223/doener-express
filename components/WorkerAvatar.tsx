@@ -21,8 +21,7 @@ export default function WorkerAvatar({ name, color, size = 'md', showName = fals
       <div className="relative">
         <div
           className={`${s.circle} rounded-full flex items-center justify-center font-bold text-white ring-2 ring-offset-2 ring-offset-zinc-900 shadow-md`}
-          style={{ backgroundColor: color, outlineColor: color, ringColor: color,
-            boxShadow: `0 0 0 2px ${color}60` }}
+          style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}60` }}
         >
           {name[0]?.toUpperCase()}
         </div>
