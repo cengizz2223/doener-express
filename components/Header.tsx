@@ -39,13 +39,13 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-4">
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 sm:h-16 bg-zinc-900 border-b border-zinc-800 flex items-center px-3 sm:px-4 gap-2 sm:gap-4">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 min-w-[180px]">
-        <span className="text-2xl">🥙</span>
-        <div>
-          <div className="text-sm font-bold text-white leading-none">Döner Express</div>
-          <div className="text-xs text-zinc-500 mt-0.5 leading-none">Bestellsystem</div>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-xl sm:text-2xl leading-none">🥙</span>
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-white leading-none whitespace-nowrap">Döner Express</div>
+          <div className="text-xs text-zinc-500 mt-0.5 leading-none hidden sm:block">Bestellsystem</div>
         </div>
       </div>
 
@@ -60,21 +60,23 @@ export default function Header() {
       </div>
 
       {/* Rechts: Uhr + Abmelden */}
-      <div className="flex items-center gap-3 ml-auto">
-        <div className="text-right hidden md:block">
-          <div className="text-sm font-mono font-bold text-orange-400 leading-none">
+      <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+        {/* Uhr: Immer sichtbar, Datum nur ab md */}
+        <div className="text-right">
+          <div className="text-xs sm:text-sm font-mono font-bold text-orange-400 leading-none">
             {time}
           </div>
-          <div className="text-xs text-zinc-500 mt-0.5 leading-none">{date}</div>
+          <div className="text-xs text-zinc-500 mt-0.5 leading-none hidden md:block">{date}</div>
         </div>
 
+        {/* Abmelden-Button */}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 hover:border-red-700/50 text-zinc-400 hover:text-red-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          className="flex items-center gap-1 sm:gap-1.5 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 hover:border-red-700/50 text-zinc-400 hover:text-red-400 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-3.5 w-3.5"
+            className="h-3.5 w-3.5 flex-shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -86,7 +88,7 @@ export default function Header() {
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
             />
           </svg>
-          Abmelden
+          <span className="hidden sm:inline">Abmelden</span>
         </button>
       </div>
     </header>

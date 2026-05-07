@@ -30,3 +30,20 @@ body {
   outline: 2px solid #f97316;
   outline-offset: 2px;
 }
+
+/* Scrollbar verstecken (für mobile horizontale Scroll-Leisten) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch-Optimierung */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button, [role="button"] {
+  touch-action: manipulation;
+}

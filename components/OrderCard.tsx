@@ -5,10 +5,10 @@ import { Order, OrderStatus, Employee, ItemAssignment, PRODUCT_INGREDIENTS, Empl
 import WorkerAvatar from './WorkerAvatar';
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; text: string; bg: string; border: string }> = {
-  neu:       { label: 'Neu',       text: 'text-blue-400',   bg: 'bg-blue-600',   border: 'border-blue-600'   },
+  neu:         { label: 'Neu',       text: 'text-blue-400',   bg: 'bg-blue-600',   border: 'border-blue-600'   },
   'in-arbeit': { label: 'In Arbeit', text: 'text-orange-400', bg: 'bg-orange-500', border: 'border-orange-500' },
-  fertig:    { label: 'Fertig',    text: 'text-green-400',  bg: 'bg-green-600',  border: 'border-green-600'  },
-  abgeholt:  { label: 'Abgeholt', text: 'text-zinc-500',   bg: 'bg-zinc-600',   border: 'border-zinc-600'   },
+  fertig:      { label: 'Fertig',    text: 'text-green-400',  bg: 'bg-green-600',  border: 'border-green-600'  },
+  abgeholt:    { label: 'Abgeholt',  text: 'text-zinc-500',   bg: 'bg-zinc-600',   border: 'border-zinc-600'   },
 };
 
 const ALL_STATUSES: OrderStatus[] = ['neu', 'in-arbeit', 'fertig', 'abgeholt'];
@@ -17,6 +17,8 @@ interface Props {
   order: Order;
   employees: EmployeeData[];
   draggingWorker: Employee | null;
+  selectedWorker?: Employee | null;
+  onSelectedWorkerAssign?: (orderId: string, itemIndex: number) => void;
   onStatusChange: (id: string, status: OrderStatus) => void;
   onItemAssign: (orderId: string, itemIndex: number, worker: Employee | null) => void;
   draggable?: boolean;
@@ -28,7 +30,10 @@ function getEmp(employees: EmployeeData[], name: string | null): EmployeeData | 
   return employees.find((e) => e.name === name) ?? { name, color: '#6b7280' };
 }
 
-export default function OrderCard({ order, employees, draggingWorker, onStatusChange, onItemAssign, draggable, onCardDragStart }: Props) {
+export default function OrderCard({
+  order, employees, draggingWorker, selectedWorker, onSelectedWorkerAssign,
+  onStatusChange, onItemAssign, draggable, onCardDragStart,
+}: Props) {
   const cfg     = STATUS_CONFIG[order.status];
   const timeStr = new Date(order.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   const numStr  = String(order.orderNumber).padStart(3, '0');
@@ -39,6 +44,13 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
   const handleItemDragOver = (e: React.DragEvent, idx: number) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setHoverIdx(idx); };
   const handleItemDrop     = (e: React.DragEvent, idx: number) => { e.preventDefault(); setHoverIdx(null); const w = e.dataTransfer.getData('worker'); if (w) onItemAssign(order.id, idx, w); };
   const handleDragLeave    = () => setHoverIdx(null);
+
+  // Mobil: Tippen auf Artikel-Zeile → Mitarbeiter zuweisen
+  const handleItemTap = (idx: number) => {
+    if (selectedWorker && onSelectedWorkerAssign) {
+      onSelectedWorkerAssign(order.id, idx);
+    }
+  };
 
   const handlePrint = () => {
     const lines = [
@@ -87,13 +99,13 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
       } : undefined}
     >
       {/* ── Header ── */}
-      <div className={`flex items-center justify-between px-3.5 py-2 border-b ${
+      <div className={`flex items-center justify-between px-3 py-2 border-b ${
         isFertig ? 'bg-green-950/20 border-green-900/30'
         : order.priority === 'schnell' ? 'bg-orange-950/20 border-orange-900/30'
         : 'bg-zinc-800/40 border-zinc-800'
       }`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          {draggable && <span className="text-zinc-600 text-xs">⠿</span>}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {draggable && <span className="text-zinc-600 text-xs hidden sm:inline">⠿</span>}
           <span className="font-mono font-bold text-zinc-300 text-sm">#{numStr}</span>
           <span className="text-zinc-600 text-xs">{timeStr}</span>
           {order.priority === 'schnell' && (
@@ -109,9 +121,9 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
           <span className="text-xs text-zinc-600">{assignedCount}/{totalItems}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
-          <button onClick={handlePrint} title="Bon drucken" className="text-zinc-600 hover:text-zinc-300 transition-colors">
+          <button onClick={handlePrint} title="Bon drucken" className="text-zinc-600 hover:text-zinc-300 active:text-zinc-200 transition-colors p-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
@@ -120,12 +132,13 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
       </div>
 
       {/* ── Body ── */}
-      <div className="px-3.5 py-3 space-y-3">
+      <div className="px-3 py-3 space-y-2.5">
 
         {/* Einzelne Artikel als Drop-Zonen */}
         <div className="space-y-1.5">
           <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Artikel — Mitarbeiter draufziehen
+            <span className="hidden sm:inline">Artikel — Mitarbeiter draufziehen</span>
+            <span className="sm:hidden">Artikel{selectedWorker ? ` — antippen für ${selectedWorker}` : ' — Mitarbeiter auswählen'}</span>
           </div>
 
           {order.itemAssignments.map((ia: ItemAssignment) => {
@@ -140,14 +153,19 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
             const isKomplett    = hasIngs && selectedIngs.length === defaultIngs.length;
             const missingIngs   = defaultIngs.filter((i) => !selectedIngs.includes(i));
 
+            const isTapTarget   = !!selectedWorker && !ia.assignedTo;
+
             return (
               <div
                 key={ia.itemIndex}
                 onDragOver={(e) => handleItemDragOver(e, ia.itemIndex)}
                 onDrop={(e) => handleItemDrop(e, ia.itemIndex)}
                 onDragLeave={handleDragLeave}
+                onClick={() => handleItemTap(ia.itemIndex)}
                 className={`rounded-xl border transition-all ${
-                  isHovered && displayEmp
+                  isTapTarget
+                    ? 'border-dashed border-orange-500/60 bg-orange-500/5 active:bg-orange-500/10 cursor-pointer'
+                    : isHovered && displayEmp
                     ? 'border-2 bg-zinc-800/80'
                     : ia.assignedTo
                     ? 'border bg-zinc-800/30'
@@ -155,12 +173,12 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
                 }`}
                 style={
                   isHovered && displayEmp ? { borderColor: displayEmp.color + '80' }
-                  : ia.assignedTo && assignedEmp ? { borderColor: assignedEmp.color + '40' }
+                  : ia.assignedTo && assignedEmp && !isTapTarget ? { borderColor: assignedEmp.color + '40' }
                   : {}
                 }
               >
                 {/* Produkt + Mitarbeiter */}
-                <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center justify-between px-3 py-2.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-zinc-100">{ia.product}</span>
                     {hasIngs && (
@@ -175,6 +193,9 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
                         → {previewEmp.name}?
                       </span>
                     )}
+                    {isTapTarget && (
+                      <span className="text-xs text-orange-400/70 font-medium sm:hidden">👆 tippen</span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -182,14 +203,14 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
                       <>
                         <WorkerAvatar name={displayEmp.name} color={displayEmp.color} size="sm" showName />
                         {ia.assignedTo && !isHovered && (
-                          <button onClick={() => onItemAssign(order.id, ia.itemIndex, null)}
-                            className="text-zinc-600 hover:text-red-400 transition-colors text-sm leading-none ml-0.5" title="Zuweisung entfernen">
+                          <button onClick={(e) => { e.stopPropagation(); onItemAssign(order.id, ia.itemIndex, null); }}
+                            className="text-zinc-600 hover:text-red-400 active:text-red-300 transition-colors text-lg leading-none ml-0.5 px-1" title="Zuweisung entfernen">
                             ×
                           </button>
                         )}
                       </>
                     ) : (
-                      <span className="text-xs text-zinc-700 border border-dashed border-zinc-700 rounded-lg px-2 py-1 whitespace-nowrap">
+                      <span className="text-xs text-zinc-700 border border-dashed border-zinc-700 rounded-lg px-2 py-1 whitespace-nowrap hidden sm:inline">
                         Mitarbeiter ziehen
                       </span>
                     )}
@@ -246,14 +267,14 @@ export default function OrderCard({ order, employees, draggingWorker, onStatusCh
           )}
         </div>
 
-        {/* Status-Buttons */}
-        <div className="grid grid-cols-4 gap-1">
+        {/* Status-Buttons — 2×2 auf Mobile, 4 in einer Reihe auf sm+ */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {ALL_STATUSES.map((status) => {
             const s = STATUS_CONFIG[status];
             const isActive = order.status === status;
             return (
               <button key={status} onClick={() => onStatusChange(order.id, status)}
-                className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${isActive ? `${s.bg} ${s.border} text-white` : `bg-transparent border-zinc-700/60 ${s.text} hover:border-zinc-600`}`}>
+                className={`py-2 sm:py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${isActive ? `${s.bg} ${s.border} text-white` : `bg-transparent border-zinc-700/60 ${s.text} hover:border-zinc-600`}`}>
                 {s.label}
               </button>
             );
