@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAllEmployees, addEmployee } from '@/lib/store';
 
 export async function GET() {
-  return NextResponse.json(getAllEmployees());
+  return NextResponse.json(await getAllEmployees());
 }
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name erforderlich.' }, { status: 400 });
     }
-    const emp = addEmployee(name);
+    const emp = await addEmployee(name);
     if (!emp) {
       return NextResponse.json({ error: 'Mitarbeiter existiert bereits.' }, { status: 409 });
     }

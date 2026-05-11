@@ -3,8 +3,8 @@ import { getAllOrders, createOrder, getStats } from '@/lib/store';
 import { CreateOrderDto } from '@/types';
 
 export async function GET() {
-  const orders = getAllOrders();
-  const stats = getStats();
+  const orders = await getAllOrders();
+  const stats  = await getStats();
   return NextResponse.json({ orders, stats });
 }
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const order = createOrder(body);
+    const order = await createOrder(body);
     return NextResponse.json(order, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Ungültige Anfrage.' }, { status: 400 });

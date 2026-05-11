@@ -8,7 +8,7 @@ export async function PATCH(
 ) {
   try {
     const body = (await request.json()) as UpdateOrderDto;
-    const order = updateOrder(params.id, body);
+    const order = await updateOrder(params.id, body);
 
     if (!order) {
       return NextResponse.json(
