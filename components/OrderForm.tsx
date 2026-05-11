@@ -21,47 +21,83 @@ const EXTRAS: { name: ExtraName; extra?: string }[] = [
   { name: 'Extra Soße' },
 ];
 
-type QuantityMap    = Record<ProductName, number>;
-type IngredientsMap = Record<ProductName, Ingredient[]>;
+type QuantityMap = Record<ProductName, number>;
+
+// Jeder einzelne Artikel hat seine eigenen Zutaten
+interface ItemEntry {
+  id: string;
+  product: ProductName;
+  ingredients: Ingredient[];
+}
 
 const EMPTY_QTY: QuantityMap = { 'Döner': 0, 'Dürüm': 0, 'Lahmacun': 0, 'Pommes': 0, 'Cola': 0, 'Ayran': 0 };
 
-function defaultIngredients(): IngredientsMap {
-  return Object.fromEntries(PRODUCTS.map((p) => [p.name, [...(PRODUCT_INGREDIENTS[p.name] ?? [])]])) as IngredientsMap;
+function newEntry(product: ProductName): ItemEntry {
+  return {
+    id: Math.random().toString(36).slice(2),
+    product,
+    ingredients: [...(PRODUCT_INGREDIENTS[product] ?? [])],
+  };
 }
 
 export default function OrderForm() {
   const [quantities,  setQuantities]  = useState<QuantityMap>({ ...EMPTY_QTY });
-  const [ingredients, setIngredients] = useState<IngredientsMap>(defaultIngredients());
+  const [itemEntries, setItemEntries] = useState<ItemEntry[]>([]);
   const [extras,      setExtras]      = useState<ExtraName[]>([]);
   const [priority,    setPriority]    = useState<Priority>('normal');
   const [loading,     setLoading]     = useState(false);
   const [success,     setSuccess]     = useState(false);
   const [error,       setError]       = useState('');
 
-  const adjustQty = (p: ProductName, d: number) =>
-    setQuantities((prev) => ({ ...prev, [p]: Math.max(0, prev[p] + d) }));
+  // Menge ändern → ItemEntry hinzufügen oder letzten entfernen
+  const adjustQty = (p: ProductName, d: number) => {
+    const newQty = Math.max(0, quantities[p] + d);
+    if (newQty === quantities[p]) return;
+    setQuantities((prev) => ({ ...prev, [p]: newQty }));
+
+    if (d > 0) {
+      setItemEntries((prev) => [...prev, newEntry(p)]);
+    } else {
+      // Letzten Eintrag dieses Produkts entfernen
+      setItemEntries((prev) => {
+        const reversedIdx = [...prev].reverse().findIndex((e) => e.product === p);
+        if (reversedIdx === -1) return prev;
+        const realIdx = prev.length - 1 - reversedIdx;
+        return prev.filter((_, i) => i !== realIdx);
+      });
+    }
+  };
 
   const toggleExtra = (e: ExtraName) =>
     setExtras((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]);
 
-  const toggleIngredient = (p: ProductName, ing: Ingredient) =>
-    setIngredients((prev) => {
-      const cur = prev[p];
-      return { ...prev, [p]: cur.includes(ing) ? cur.filter((i) => i !== ing) : [...cur, ing] };
-    });
+  // Zutat für einen einzelnen Artikel umschalten
+  const toggleIngredient = (entryId: string, ing: Ingredient) =>
+    setItemEntries((prev) => prev.map((e) =>
+      e.id !== entryId ? e : {
+        ...e,
+        ingredients: e.ingredients.includes(ing)
+          ? e.ingredients.filter((i) => i !== ing)
+          : [...e.ingredients, ing],
+      }
+    ));
 
-  const selectAll  = (p: ProductName) => setIngredients((prev) => ({ ...prev, [p]: [...PRODUCT_INGREDIENTS[p]] }));
-  const selectNone = (p: ProductName) => setIngredients((prev) => ({ ...prev, [p]: [] }));
+  const selectAll  = (entryId: string, p: ProductName) =>
+    setItemEntries((prev) => prev.map((e) => e.id !== entryId ? e : { ...e, ingredients: [...PRODUCT_INGREDIENTS[p]] }));
 
-  const total    = PRODUCTS.reduce((s, p) => s + p.price * quantities[p.name], 0) + (extras.includes('Extra Fleisch') ? 2 : 0);
-  const hasItems = PRODUCTS.some((p) => quantities[p.name] > 0);
+  const selectNone = (entryId: string) =>
+    setItemEntries((prev) => prev.map((e) => e.id !== entryId ? e : { ...e, ingredients: [] }));
 
-  const activeWithIng = PRODUCTS.filter((p) => quantities[p.name] > 0 && PRODUCT_INGREDIENTS[p.name].length > 0);
+  const total    = itemEntries.reduce((s, e) => s + (PRODUCTS.find((p) => p.name === e.product)?.price ?? 0), 0)
+                  + (extras.includes('Extra Fleisch') ? 2 : 0);
+  const hasItems = itemEntries.length > 0;
+
+  // Nur Einträge mit Zutaten-Auswahl anzeigen
+  const entriesWithIng = itemEntries.filter((e) => PRODUCT_INGREDIENTS[e.product]?.length > 0);
 
   const resetForm = () => {
     setQuantities({ ...EMPTY_QTY });
-    setIngredients(defaultIngredients());
+    setItemEntries([]);
     setExtras([]);
     setPriority('normal');
   };
@@ -71,8 +107,11 @@ export default function OrderForm() {
     setError('');
     if (!hasItems) { setError('Bitte mindestens ein Produkt auswählen.'); return; }
 
-    const items: OrderItem[] = PRODUCTS.filter((p) => quantities[p.name] > 0).map((p) => ({
-      product: p.name, quantity: quantities[p.name], ingredients: ingredients[p.name] ?? [],
+    // Jeden Artikel einzeln mit eigenen Zutaten senden (quantity=1)
+    const items: OrderItem[] = itemEntries.map((entry) => ({
+      product: entry.product,
+      quantity: 1,
+      ingredients: entry.ingredients,
     }));
 
     setLoading(true);
@@ -141,43 +180,68 @@ export default function OrderForm() {
           </div>
         </div>
 
-        {/* ── Zutaten pro aktivem Gericht ── */}
-        {activeWithIng.length > 0 && (
-          <div className="space-y-3">
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider">Zutaten pro Gericht</label>
-            {activeWithIng.map((product) => {
-              const available  = PRODUCT_INGREDIENTS[product.name];
-              const selected   = ingredients[product.name];
-              const allChosen  = selected.length === available.length;
-              const noneChosen = selected.length === 0;
+        {/* ── Zutaten pro einzelnem Artikel ── */}
+        {entriesWithIng.length > 0 && (
+          <div className="space-y-2.5">
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Zutaten — pro Stück einzeln
+            </label>
+
+            {entriesWithIng.map((entry) => {
+              const available  = PRODUCT_INGREDIENTS[entry.product];
+              const allChosen  = entry.ingredients.length === available.length;
+              const noneChosen = entry.ingredients.length === 0;
+              const emoji      = PRODUCTS.find((p) => p.name === entry.product)?.emoji ?? '';
+
+              // Nummer dieses Artikels unter seinen Geschwistern berechnen
+              const siblings  = itemEntries.filter((e) => e.product === entry.product);
+              const itemNum   = siblings.findIndex((e) => e.id === entry.id) + 1;
+              const showNum   = siblings.length > 1;
+
               return (
-                <div key={product.name} className="bg-zinc-800/50 border border-zinc-700/60 rounded-xl overflow-hidden">
+                <div key={entry.id} className="bg-zinc-800/50 border border-zinc-700/60 rounded-xl overflow-hidden">
+                  {/* Header */}
                   <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-700/40 bg-zinc-800/80">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span>{product.emoji}</span>
-                      <span className="text-sm font-bold text-white">{product.name}</span>
-                      <span className="text-xs text-zinc-500">({quantities[product.name]}×)</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${allChosen ? 'bg-green-600/20 text-green-400' : noneChosen ? 'bg-red-900/30 text-red-400' : 'bg-orange-600/20 text-orange-400'}`}>
-                        {allChosen ? '✓ Alles' : noneChosen ? 'Nichts' : `${selected.length}/${available.length}`}
+                      <span>{emoji}</span>
+                      <span className="text-sm font-bold text-white">{entry.product}</span>
+                      {showNum && (
+                        <span className="text-xs bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded-full font-bold">
+                          #{itemNum}
+                        </span>
+                      )}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                        allChosen  ? 'bg-green-600/20 text-green-400' :
+                        noneChosen ? 'bg-red-900/30 text-red-400' :
+                                     'bg-orange-600/20 text-orange-400'
+                      }`}>
+                        {allChosen ? '✓ Alles' : noneChosen ? 'Nichts' : `${entry.ingredients.length}/${available.length}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => selectAll(product.name)}
-                        className={`text-xs px-2 py-1.5 rounded-lg font-semibold transition-all touch-manipulation ${allChosen ? 'bg-green-600/20 text-green-400 border border-green-600/30' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 active:bg-zinc-500'}`}>
+                      <button type="button" onClick={() => selectAll(entry.id, entry.product)}
+                        className={`text-xs px-2 py-1.5 rounded-lg font-semibold transition-all touch-manipulation ${
+                          allChosen ? 'bg-green-600/20 text-green-400 border border-green-600/30' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 active:bg-zinc-500'
+                        }`}>
                         Alles
                       </button>
-                      <button type="button" onClick={() => selectNone(product.name)}
+                      <button type="button" onClick={() => selectNone(entry.id)}
                         className="text-xs px-2 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 active:text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600 transition-all touch-manipulation">
                         Nichts
                       </button>
                     </div>
                   </div>
+
+                  {/* Zutaten-Pills */}
                   <div className="p-2.5 sm:p-3 flex flex-wrap gap-1.5 sm:gap-2">
                     {available.map((ing) => {
-                      const on = selected.includes(ing);
+                      const on = entry.ingredients.includes(ing);
                       return (
-                        <button key={ing} type="button" onClick={() => toggleIngredient(product.name, ing)}
-                          className={`flex items-center gap-1 text-xs px-2.5 py-2 sm:py-1.5 rounded-full border font-medium transition-all select-none touch-manipulation ${on ? 'bg-orange-600/15 border-orange-500/50 text-orange-300 active:bg-orange-600/25' : 'bg-zinc-900/60 border-zinc-700/50 text-zinc-500 hover:border-zinc-500 hover:text-zinc-400 active:bg-zinc-800'}`}>
+                        <button key={ing} type="button" onClick={() => toggleIngredient(entry.id, ing)}
+                          className={`flex items-center gap-1 text-xs px-2.5 py-2 sm:py-1.5 rounded-full border font-medium transition-all select-none touch-manipulation ${
+                            on ? 'bg-orange-600/15 border-orange-500/50 text-orange-300 active:bg-orange-600/25'
+                               : 'bg-zinc-900/60 border-zinc-700/50 text-zinc-500 hover:border-zinc-500 hover:text-zinc-400 active:bg-zinc-800'
+                          }`}>
                           {on
                             ? <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             : <svg className="w-3 h-3 opacity-30" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/></svg>
